@@ -1,6 +1,6 @@
 package ru.unn.edtech.support.web;
 
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,10 +33,10 @@ public class HeaderRequestContextFilter extends OncePerRequestFilter {
 
     private static final int MAX_HEADER_LEN = 128;
 
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
 
-    public HeaderRequestContextFilter(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
+    public HeaderRequestContextFilter(JsonMapper jsonMapper) {
+        this.jsonMapper = jsonMapper;
     }
 
     @Override
@@ -44,17 +44,22 @@ public class HeaderRequestContextFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        // 1) traceId берем из X-Request-Id или генерируем
+        // traceId берем из X-Request-Id или генерируем
         String traceId = resolveTraceId(request);
 
-        // 2) добавляем СРАЗУ traiceId в ответ
         response.setHeader(H_REQUEST_ID, traceId);
 
-        // 3) читаем обязательные заголовки
+        // Исключение: публичные эндпоинты проверки health/liveness допускаются без заголовков userId/role
+        if (isPublicEndpoint(request)) {
+            request.setAttribute(REQUEST_CONTEXT_ATTR, new RequestContext(null, null, traceId));
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String userIdRaw = request.getHeader(H_USER_ID);
         String roleRaw = request.getHeader(H_USER_ROLE);
 
-        // 4) валидируем userId
+        // валидируем userId
         if (!StringUtils.hasText(userIdRaw)) {
             writeBadRequest(response, traceId, "INVALID_REQUEST_HEADER",
                     "Header отсутствует или пустой: " + H_USER_ID);
@@ -67,7 +72,7 @@ public class HeaderRequestContextFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 5) валидируем/парсим role
+        // валидируем/парсим role
         if (!StringUtils.hasText(roleRaw)) {
             writeBadRequest(response, traceId, "INVALID_REQUEST_HEADER",
                     "Header отсутствует или пустой: " + H_USER_ROLE);
@@ -89,11 +94,11 @@ public class HeaderRequestContextFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 6) создаем контекст и кладем в request attributes
+        // создаем контекст и кладем в request attributes
         RequestContext ctx = new RequestContext(userId, role, traceId);
         request.setAttribute(REQUEST_CONTEXT_ATTR, ctx);
 
-        // 7) пропускаем дальше
+        // пропускаем дальше
         filterChain.doFilter(request, response);
     }
 
@@ -107,6 +112,19 @@ public class HeaderRequestContextFilter extends OncePerRequestFilter {
             // слишком длинный — не принимаем, генерим безопасный
         }
         return UUID.randomUUID().toString();
+    }
+
+    private boolean isPublicEndpoint(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        // Базовый health endpoint
+        if ("/api/v1/ping".equals(uri)) {
+            return true;
+        }
+        // Spring Boot actuator health/info
+        if (uri != null && uri.startsWith("/actuator/health")) {
+            return true;
+        }
+        return "/actuator/info".equals(uri);
     }
 
     private void writeBadRequest(HttpServletResponse response,
@@ -124,6 +142,6 @@ public class HeaderRequestContextFilter extends OncePerRequestFilter {
         body.put("message", message);
         body.put("traceId", traceId);
 
-        objectMapper.writeValue(response.getWriter(), body);
+        jsonMapper.writeValue(response.getWriter(), body);
     }
 }
