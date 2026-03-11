@@ -5,6 +5,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import ru.unn.edtech.rubric.RubricNotFoundException;
+import ru.unn.edtech.evaluation.EvaluationJobEntity;
+import ru.unn.edtech.evaluation.EvaluationJobService;
+import ru.unn.edtech.evaluation.EvaluationJobStatus;
 import ru.unn.edtech.submission.CreateSubmissionCommand;
 import ru.unn.edtech.submission.SubmissionEntity;
 import ru.unn.edtech.submission.SubmissionNotFoundException;
@@ -30,8 +33,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SubmissionControllerWebTest {
 
     private final StubSubmissionService submissionService = new StubSubmissionService();
+    private final StubEvaluationJobService evaluationJobService = new StubEvaluationJobService();
     private final MockMvc mockMvc = MockMvcBuilders
-            .standaloneSetup(new SubmissionController(submissionService))
+            .standaloneSetup(new SubmissionController(submissionService, evaluationJobService))
             .setControllerAdvice(new ApiExceptionHandler())
             .addFilters(new HeaderRequestContextFilter(tools.jackson.databind.json.JsonMapper.builder().build()))
             .build();
@@ -169,6 +173,60 @@ class SubmissionControllerWebTest {
                 .andExpect(jsonPath("$.code").value("SUBMISSION_NOT_FOUND"));
     }
 
+    @Test
+    void startEvaluationReturnsQueuedJobForTeacher() throws Exception {
+        UUID submissionId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        EvaluationJobEntity job = new EvaluationJobEntity();
+        job.setId(jobId);
+        job.setSubmissionId(submissionId);
+        job.setStatus(EvaluationJobStatus.QUEUED);
+        evaluationJobService.createResult = job;
+
+        mockMvc.perform(post("/api/v1/submissions/{submissionId}/evaluate", submissionId)
+                        .header("X-User-Id", "teacher-1")
+                        .header("X-User-Role", "TEACHER")
+                        .header("X-Request-Id", "trace-evaluate"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.jobId").value(jobId.toString()))
+                .andExpect(jsonPath("$.status").value("QUEUED"));
+    }
+
+    @Test
+    void startEvaluationReturnsForbiddenForStudent() throws Exception {
+        mockMvc.perform(post("/api/v1/submissions/{submissionId}/evaluate", UUID.randomUUID())
+                        .header("X-User-Id", "student-1")
+                        .header("X-User-Role", "STUDENT"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void startEvaluationReturnsNotFoundForMissingSubmission() throws Exception {
+        UUID submissionId = UUID.randomUUID();
+        evaluationJobService.missingSubmissionId = submissionId;
+
+        mockMvc.perform(post("/api/v1/submissions/{submissionId}/evaluate", submissionId)
+                        .header("X-User-Id", "teacher-1")
+                        .header("X-User-Role", "TEACHER"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("SUBMISSION_NOT_FOUND"));
+    }
+
+    @Test
+    void startEvaluationReturnsBadRequestWhenActiveJobExists() throws Exception {
+        UUID submissionId = UUID.randomUUID();
+        evaluationJobService.duplicateSubmissionId = submissionId;
+
+        mockMvc.perform(post("/api/v1/submissions/{submissionId}/evaluate", submissionId)
+                        .header("X-User-Id", "teacher-1")
+                        .header("X-User-Role", "TEACHER")
+                        .header("X-Request-Id", "trace-duplicate-job"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.traceId").value("trace-duplicate-job"));
+    }
+
     private SubmissionEntity submission(UUID submissionId, String studentId) {
         SubmissionEntity submission = new SubmissionEntity();
         submission.setId(submissionId);
@@ -177,6 +235,48 @@ class SubmissionControllerWebTest {
         submission.setText("Essay text");
         submission.setCreatedAt(Instant.parse("2026-03-11T12:00:00Z"));
         return submission;
+    }
+
+    private static final class StubEvaluationJobService extends EvaluationJobService {
+        private EvaluationJobEntity createResult;
+        private UUID missingSubmissionId;
+        private UUID duplicateSubmissionId;
+
+        private StubEvaluationJobService() {
+            super(unsupportedEvaluationJobRepository(), unsupportedSubmissionRepositoryForEvaluation());
+        }
+
+        @Override
+        public EvaluationJobEntity createQueuedJob(UUID submissionId, String traceId) {
+            if (submissionId.equals(missingSubmissionId)) {
+                throw new SubmissionNotFoundException(submissionId);
+            }
+            if (submissionId.equals(duplicateSubmissionId)) {
+                throw new ru.unn.edtech.support.exception.BadRequestException(
+                        "An active evaluation job already exists for this submission");
+            }
+            return createResult;
+        }
+
+        private static ru.unn.edtech.evaluation.EvaluationJobRepository unsupportedEvaluationJobRepository() {
+            return (ru.unn.edtech.evaluation.EvaluationJobRepository) java.lang.reflect.Proxy.newProxyInstance(
+                    ru.unn.edtech.evaluation.EvaluationJobRepository.class.getClassLoader(),
+                    new Class[]{ru.unn.edtech.evaluation.EvaluationJobRepository.class},
+                    (proxy, method, args) -> {
+                        throw new UnsupportedOperationException(method.getName());
+                    }
+            );
+        }
+
+        private static ru.unn.edtech.submission.SubmissionRepository unsupportedSubmissionRepositoryForEvaluation() {
+            return (ru.unn.edtech.submission.SubmissionRepository) java.lang.reflect.Proxy.newProxyInstance(
+                    ru.unn.edtech.submission.SubmissionRepository.class.getClassLoader(),
+                    new Class[]{ru.unn.edtech.submission.SubmissionRepository.class},
+                    (proxy, method, args) -> {
+                        throw new UnsupportedOperationException(method.getName());
+                    }
+            );
+        }
     }
 
     private static final class StubSubmissionService extends SubmissionService {

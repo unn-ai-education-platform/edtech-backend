@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import ru.unn.edtech.evaluation.EvaluationJobEntity;
+import ru.unn.edtech.evaluation.EvaluationJobService;
 import ru.unn.edtech.submission.CreateSubmissionCommand;
 import ru.unn.edtech.submission.SubmissionEntity;
 import ru.unn.edtech.submission.SubmissionService;
@@ -25,9 +27,11 @@ import java.util.UUID;
 public class SubmissionController {
 
     private final SubmissionService submissionService;
+    private final EvaluationJobService evaluationJobService;
 
-    public SubmissionController(SubmissionService submissionService) {
+    public SubmissionController(SubmissionService submissionService, EvaluationJobService evaluationJobService) {
         this.submissionService = submissionService;
+        this.evaluationJobService = evaluationJobService;
     }
 
     @PostMapping
@@ -53,6 +57,15 @@ public class SubmissionController {
         SubmissionView submission = submissionService.getSubmission(submissionId, ctx.getUserId(), ctx.getRole());
 
         return SubmissionResponse.from(submission);
+    }
+
+    @PostMapping("/{submissionId}/evaluate")
+    public StartEvaluationResponse startEvaluation(@PathVariable UUID submissionId, HttpServletRequest servletRequest) {
+        RequestContext ctx = requestContext(servletRequest);
+        Access.requireTeacher(ctx);
+
+        EvaluationJobEntity job = evaluationJobService.createQueuedJob(submissionId, ctx.getTraceId());
+        return new StartEvaluationResponse(job.getId(), job.getStatus());
     }
 
     private RequestContext requestContext(HttpServletRequest request) {
