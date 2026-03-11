@@ -146,6 +146,13 @@ Response:
 }
 ```
 
+Rules:
+- Endpoint is available only to `STUDENT`.
+- `rubricId` must reference an existing rubric.
+
+Errors:
+- `404 RUBRIC_NOT_FOUND` if the rubric does not exist.
+
 #### `GET /api/v1/submissions/{id}` (student + teacher)
 
 Canonical aggregate read endpoint.
@@ -183,6 +190,12 @@ When final ready:
   }
 }
 ```
+
+Access / errors:
+- `STUDENT` can read only their own submission.
+- `TEACHER` can read any submission.
+- `404 SUBMISSION_NOT_FOUND` if the submission does not exist.
+- `403 FORBIDDEN` if a student tries to access another student's submission.
 
 #### `GET /api/v1/submissions?status=...` (teacher)
 

@@ -40,7 +40,7 @@ If the system is delayed internally, the student still sees `UNDER_REVIEW` in MV
 ### T1 — Rubric management
 
 - Create rubric (name, criteria with weights, grade scheme)
-- Edit rubric
+- In MVP, created rubrics are read-only.
 
 ### T2 — Submissions list
 

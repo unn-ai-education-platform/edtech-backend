@@ -3,10 +3,9 @@
 ## In scope (MVP)
 
 - TEXT submissions only.
-- Rubric CRUD sufficient to run grading:
+- Rubric endpoints sufficient to run grading:
   - create rubric
   - read rubric
-  - update rubric (minimal)
 - Student flow:
   - create submission
   - view submission status and final result (generic status only)
