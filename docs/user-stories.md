@@ -16,7 +16,7 @@
 
 1. **Create and manage rubrics**
    - As a teacher, I can create a rubric with criteria and weights.
-   - As a teacher, I can update a rubric when needed.
+   - In MVP, created rubrics are immutable.
 
 2. **View submissions**
    - As a teacher, I can list submissions and open submission details.
