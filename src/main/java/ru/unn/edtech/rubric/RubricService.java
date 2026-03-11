@@ -3,7 +3,9 @@ package ru.unn.edtech.rubric;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.unn.edtech.support.exception.BadRequestException;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
@@ -44,28 +46,62 @@ public class RubricService {
                 .orElseThrow(() -> new RubricNotFoundException(rubricId));
     }
 
+    @Transactional
+    public RubricEntity updateRubric(UUID rubricId, UpdateRubricCommand command) {
+        RubricEntity rubric = getRubric(rubricId);
+
+        String nextName = command.name() != null ? command.name() : rubric.getName();
+        JsonNode nextCriteria = command.criteria() != null
+                ? jsonMapper.valueToTree(command.criteria())
+                : rubric.getCriteria();
+        JsonNode nextGradeScheme = command.gradeScheme() != null
+                ? command.gradeScheme()
+                : rubric.getGradeScheme();
+
+        validate(
+                nextName,
+                jsonMapper.convertValue(nextCriteria, new TypeReference<>() {}),
+                nextGradeScheme,
+                rubric.getCreatedBy()
+        );
+
+        rubric.setName(nextName.trim());
+        rubric.setCriteria(nextCriteria.deepCopy());
+        rubric.setGradeScheme(nextGradeScheme.deepCopy());
+        rubric.setUpdatedAt(Instant.now());
+
+        return rubricRepository.save(rubric);
+    }
+
     private void validate(CreateRubricCommand command) {
-        if (command.name() == null || command.name().isBlank()) {
+        validate(command.name(), command.criteria(), command.gradeScheme(), command.createdBy());
+    }
+
+    private void validate(String name,
+                          java.util.List<RubricCriterion> criteria,
+                          JsonNode gradeScheme,
+                          String createdBy) {
+        if (name == null || name.isBlank()) {
             throw new BadRequestException("Rubric name must not be blank");
         }
 
-        if (command.createdBy() == null || command.createdBy().isBlank()) {
+        if (createdBy == null || createdBy.isBlank()) {
             throw new BadRequestException("createdBy must not be blank");
         }
 
-        if (command.criteria() == null || command.criteria().isEmpty()) {
+        if (criteria == null || criteria.isEmpty()) {
             throw new BadRequestException("Rubric must contain at least one criterion");
         }
 
-        if (command.gradeScheme() == null) {
+        if (gradeScheme == null) {
             throw new BadRequestException("gradeScheme must not be null");
         }
 
-        if (!(command.gradeScheme() instanceof ArrayNode || command.gradeScheme().isObject())) {
+        if (!(gradeScheme instanceof ArrayNode || gradeScheme.isObject())) {
             throw new BadRequestException("gradeScheme must be a JSON object or array");
         }
 
-        boolean hasInvalidWeight = command.criteria().stream()
+        boolean hasInvalidWeight = criteria.stream()
                 .mapToInt(RubricCriterion::weight)
                 .anyMatch(weight -> weight < 0 || weight > 100);
 
@@ -73,7 +109,7 @@ public class RubricService {
             throw new BadRequestException("Criterion weight must be in range 0..100");
         }
 
-        int totalWeight = command.criteria().stream()
+        int totalWeight = criteria.stream()
                 .mapToInt(RubricCriterion::weight)
                 .sum();
 
@@ -81,9 +117,9 @@ public class RubricService {
             throw new BadRequestException("Criterion weights must sum to 100");
         }
 
-        boolean hasBlankCriterionName = command.criteria().stream()
+        boolean hasBlankCriterionName = criteria.stream()
                 .map(RubricCriterion::name)
-                .anyMatch(name -> name == null || name.isBlank());
+                .anyMatch(criterionName -> criterionName == null || criterionName.isBlank());
 
         if (hasBlankCriterionName) {
             throw new BadRequestException("Criterion name must not be blank");

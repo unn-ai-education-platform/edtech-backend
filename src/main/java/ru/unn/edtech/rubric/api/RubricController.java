@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,6 +18,7 @@ import ru.unn.edtech.rubric.CreateRubricCommand;
 import ru.unn.edtech.rubric.RubricCriterion;
 import ru.unn.edtech.rubric.RubricEntity;
 import ru.unn.edtech.rubric.RubricService;
+import ru.unn.edtech.rubric.UpdateRubricCommand;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -59,6 +61,32 @@ public class RubricController {
         Access.requireTeacher(ctx);
 
         return toResponse(rubricService.getRubric(rubricId));
+    }
+
+    @PatchMapping("/{rubricId}")
+    public RubricResponse updateRubric(@PathVariable UUID rubricId,
+                                       @Valid @RequestBody UpdateRubricRequest request,
+                                       HttpServletRequest servletRequest) {
+        RequestContext ctx = requestContext(servletRequest);
+        Access.requireTeacher(ctx);
+
+        RubricEntity rubric = rubricService.updateRubric(
+                rubricId,
+                new UpdateRubricCommand(
+                        request.name(),
+                        request.criteria() != null
+                                ? request.criteria().stream()
+                                .map(criterion -> new RubricCriterion(
+                                        criterion.name(),
+                                        criterion.description(),
+                                        criterion.weight()))
+                                .toList()
+                                : null,
+                        request.gradeScheme()
+                )
+        );
+
+        return toResponse(rubric);
     }
 
     private RequestContext requestContext(HttpServletRequest request) {
