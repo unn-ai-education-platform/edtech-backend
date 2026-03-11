@@ -14,3 +14,16 @@ Initial documentation baseline aligned to the repository foundation:
   - `ACCEPT_AI` requires `aiResultId`,
   - `totalScoreNormalized` is constrained to `0..100`.
 - Health endpoints are public (no user headers): `GET /api/v1/ping`, `/actuator/health*` (if exposed).
+
+## 2026-03-11
+
+Уточнено текущее поведение API для Rubrics:
+
+- Зафиксирована текущая форма request/response для `POST /api/v1/rubrics` и `GET /api/v1/rubrics/{id}`.
+- Rubrics сделаны immutable after creation в рамках MVP; `PATCH /api/v1/rubrics/{id}` больше не поддерживается.
+- Зафиксированы rubric-specific error codes:
+  - `INVALID_REQUEST`
+  - `RUBRIC_NOT_FOUND`
+- Временное ограничение:
+  - поведение покрыто unit/web tests;
+  - отдельные PostgreSQL integration tests для persistence mapping еще не добавлены и должны появиться позже вместе с полноценной test DB strategy.

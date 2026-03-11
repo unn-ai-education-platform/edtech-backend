@@ -31,6 +31,7 @@
    - Given a teacher request
    - When `POST /api/v1/rubrics` is called with valid rubric payload
    - Then a rubric is stored and the response contains its id and timestamps.
+   - And the rubric cannot be modified after creation in MVP.
 
 2. **Read rubric**
    - When `GET /api/v1/rubrics/{id}` is called

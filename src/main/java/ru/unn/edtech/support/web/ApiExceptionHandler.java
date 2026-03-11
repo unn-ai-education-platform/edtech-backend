@@ -3,7 +3,10 @@ package ru.unn.edtech.support.web;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.util.StringUtils;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import ru.unn.edtech.support.RequestContext;
@@ -26,6 +29,40 @@ public class ApiExceptionHandler {
 
         return ResponseEntity
                 .status(ex.getHttpStatus())
+                .body(body);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiErrorResponse> handleValidationException(MethodArgumentNotValidException ex,
+                                                                      HttpServletRequest request) {
+        String traceId = resolveTraceId(request);
+        FieldError fieldError = ex.getBindingResult().getFieldError();
+        String message = fieldError != null ? fieldError.getDefaultMessage() : "Request validation failed";
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                "INVALID_REQUEST",
+                message,
+                traceId
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(body);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnreadableMessage(HttpMessageNotReadableException ex,
+                                                                    HttpServletRequest request) {
+        String traceId = resolveTraceId(request);
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                "INVALID_REQUEST",
+                "Request body is malformed or has invalid field types",
+                traceId
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
                 .body(body);
     }
 
