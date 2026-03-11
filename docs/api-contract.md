@@ -58,7 +58,71 @@ Authorization / errors:
 
 - `POST /api/v1/rubrics`
 - `GET /api/v1/rubrics/{id}`
-- `PATCH /api/v1/rubrics/{id}`
+
+#### `POST /api/v1/rubrics` (teacher)
+
+Текущая реализованная форма запроса:
+
+```json
+{
+  "name": "Essay rubric",
+  "criteria": [
+    {
+      "name": "Content",
+      "description": "optional",
+      "weight": 60
+    },
+    {
+      "name": "Style",
+      "description": "optional",
+      "weight": 40
+    }
+  ],
+  "gradeScheme": {
+    "bands": []
+  }
+}
+```
+
+Текущая реализованная форма ответа:
+
+```json
+{
+  "id": "uuid",
+  "name": "Essay rubric",
+  "criteria": [],
+  "gradeScheme": {},
+  "createdAt": "timestamp",
+  "updatedAt": "timestamp"
+}
+```
+
+Правила:
+- Endpoint доступен только `TEACHER`.
+- `criteria` не должен быть пустым.
+- Вес каждого критерия должен быть в диапазоне `0..100`.
+- Сумма весов критериев должна быть равна `100`.
+- `gradeScheme` должен быть JSON object или JSON array.
+
+Замечание по реализации:
+- `criteria` и `gradeScheme` сохраняются как целые JSON-документы в существующие `jsonb`-поля схемы.
+- Это соответствует текущему `V1__init.sql` и является осознанным решением для MVP.
+
+#### `GET /api/v1/rubrics/{id}` (teacher)
+
+Возвращает полное текущее состояние rubric в той же форме, что и `POST /api/v1/rubrics`.
+
+MVP note:
+- Rubrics are immutable after creation.
+
+Ошибки:
+- `404 RUBRIC_NOT_FOUND`, если rubric не существует.
+
+Ошибки для Rubrics:
+- `400 INVALID_REQUEST_HEADER` — отсутствуют или невалидны обязательные заголовки;
+- `400 INVALID_REQUEST` — payload нарушает инварианты rubric;
+- `403 FORBIDDEN` — роль пользователя не `TEACHER`;
+- `404 RUBRIC_NOT_FOUND` — rubric не найден.
 
 ### Submissions
 

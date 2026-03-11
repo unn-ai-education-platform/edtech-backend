@@ -3,6 +3,7 @@ package ru.unn.edtech.support.web;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -41,6 +42,22 @@ public class ApiExceptionHandler {
         ApiErrorResponse body = new ApiErrorResponse(
                 "INVALID_REQUEST",
                 message,
+                traceId
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(body);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnreadableMessage(HttpMessageNotReadableException ex,
+                                                                    HttpServletRequest request) {
+        String traceId = resolveTraceId(request);
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                "INVALID_REQUEST",
+                "Request body is malformed or has invalid field types",
                 traceId
         );
 

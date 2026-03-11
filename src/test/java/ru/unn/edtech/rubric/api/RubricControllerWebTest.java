@@ -19,7 +19,6 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -101,6 +100,69 @@ class RubricControllerWebTest {
     }
 
     @Test
+    void createRubricReturnsBadRequestWhenCriterionWeightMissing() throws Exception {
+        mockMvc.perform(post("/api/v1/rubrics")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "teacher-1")
+                        .header("X-User-Role", "TEACHER")
+                        .header("X-Request-Id", "req-missing-weight")
+                        .content("""
+                                {
+                                  "name": "Essay rubric",
+                                  "criteria": [
+                                    {"name": "Content", "description": null},
+                                    {"name": "Style", "description": "Clarity", "weight": 100}
+                                  ],
+                                  "gradeScheme": {"bands": []}
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.traceId").value("req-missing-weight"));
+    }
+
+    @Test
+    void createRubricReturnsBadRequestForMalformedJson() throws Exception {
+        mockMvc.perform(post("/api/v1/rubrics")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "teacher-1")
+                        .header("X-User-Role", "TEACHER")
+                        .header("X-Request-Id", "req-malformed-json")
+                        .content("""
+                                {
+                                  "name": "Essay rubric",
+                                  "criteria": [
+                                    {"name": "Content", "description": null, "weight": 100}
+                                  ],
+                                  "gradeScheme": {"bands": []}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.traceId").value("req-malformed-json"));
+    }
+
+    @Test
+    void createRubricReturnsBadRequestForInvalidWeightType() throws Exception {
+        mockMvc.perform(post("/api/v1/rubrics")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "teacher-1")
+                        .header("X-User-Role", "TEACHER")
+                        .header("X-Request-Id", "req-invalid-weight-type")
+                        .content("""
+                                {
+                                  "name": "Essay rubric",
+                                  "criteria": [
+                                    {"name": "Content", "description": null, "weight": "heavy"}
+                                  ],
+                                  "gradeScheme": {"bands": []}
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.traceId").value("req-invalid-weight-type"));
+    }
+
+    @Test
     void getRubricReturnsTeacherOnlyView() throws Exception {
         UUID rubricId = UUID.randomUUID();
         rubricService.getResult = rubric(rubricId);
@@ -127,27 +189,6 @@ class RubricControllerWebTest {
                 .andExpect(jsonPath("$.traceId").value("req-not-found"));
     }
 
-    @Test
-    void updateRubricReturnsUpdatedRubricForTeacher() throws Exception {
-        UUID rubricId = UUID.randomUUID();
-        RubricEntity updated = rubric(rubricId);
-        updated.setName("Updated rubric");
-        rubricService.updateResult = updated;
-
-        mockMvc.perform(patch("/api/v1/rubrics/{rubricId}", rubricId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", "teacher-1")
-                        .header("X-User-Role", "TEACHER")
-                        .content("""
-                                {
-                                  "name": "Updated rubric"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(rubricId.toString()))
-                .andExpect(jsonPath("$.name").value("Updated rubric"));
-    }
-
     private RubricEntity rubric(UUID rubricId) {
         RubricEntity rubric = new RubricEntity();
         rubric.setId(rubricId);
@@ -168,7 +209,6 @@ class RubricControllerWebTest {
     private static final class StubRubricService extends RubricService {
         private RubricEntity createResult;
         private RubricEntity getResult;
-        private RubricEntity updateResult;
         private UUID notFoundId;
 
         private StubRubricService(JsonMapper jsonMapper) {
@@ -186,14 +226,6 @@ class RubricControllerWebTest {
                 throw new RubricNotFoundException(rubricId);
             }
             return getResult;
-        }
-
-        @Override
-        public RubricEntity updateRubric(UUID rubricId, ru.unn.edtech.rubric.UpdateRubricCommand command) {
-            if (rubricId.equals(notFoundId)) {
-                throw new RubricNotFoundException(rubricId);
-            }
-            return updateResult;
         }
 
         private static RubricRepository unsupportedRepository() {

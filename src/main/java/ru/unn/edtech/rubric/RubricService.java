@@ -5,7 +5,6 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.unn.edtech.support.exception.BadRequestException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
@@ -44,33 +43,6 @@ public class RubricService {
     public RubricEntity getRubric(UUID rubricId) {
         return rubricRepository.findById(rubricId)
                 .orElseThrow(() -> new RubricNotFoundException(rubricId));
-    }
-
-    @Transactional
-    public RubricEntity updateRubric(UUID rubricId, UpdateRubricCommand command) {
-        RubricEntity rubric = getRubric(rubricId);
-
-        String nextName = command.name() != null ? command.name() : rubric.getName();
-        JsonNode nextCriteria = command.criteria() != null
-                ? jsonMapper.valueToTree(command.criteria())
-                : rubric.getCriteria();
-        JsonNode nextGradeScheme = command.gradeScheme() != null
-                ? command.gradeScheme()
-                : rubric.getGradeScheme();
-
-        validate(
-                nextName,
-                jsonMapper.convertValue(nextCriteria, new TypeReference<>() {}),
-                nextGradeScheme,
-                rubric.getCreatedBy()
-        );
-
-        rubric.setName(nextName.trim());
-        rubric.setCriteria(nextCriteria.deepCopy());
-        rubric.setGradeScheme(nextGradeScheme.deepCopy());
-        rubric.setUpdatedAt(Instant.now());
-
-        return rubricRepository.save(rubric);
     }
 
     private void validate(CreateRubricCommand command) {

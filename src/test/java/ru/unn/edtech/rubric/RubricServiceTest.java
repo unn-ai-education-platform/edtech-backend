@@ -69,22 +69,6 @@ class RubricServiceTest {
                 .hasMessageContaining(rubricId.toString());
     }
 
-    @Test
-    void updateRubricChangesOnlyProvidedFields() {
-        RecordingRepository recordingRepository = new RecordingRepository();
-        recordingRepository.store(existingRubric());
-        RubricService rubricService = new RubricService(recordingRepository.repository(), jsonMapper);
-
-        RubricEntity updated = rubricService.updateRubric(
-                recordingRepository.lastSaved().getId(),
-                new UpdateRubricCommand("Updated rubric", null, null)
-        );
-
-        assertThat(updated.getName()).isEqualTo("Updated rubric");
-        assertThat(updated.getCriteria().get(0).get("name").asText()).isEqualTo("Content");
-        assertThat(updated.getUpdatedAt()).isAfterOrEqualTo(updated.getCreatedAt());
-    }
-
     private RubricRepository missingRepository() {
         return (RubricRepository) Proxy.newProxyInstance(
                 RubricRepository.class.getClassLoader(),
@@ -103,21 +87,6 @@ class RubricServiceTest {
         ArrayNode bands = gradeScheme.putArray("bands");
         bands.addObject().put("grade", "A").put("minScore", 90);
         return gradeScheme;
-    }
-
-    private RubricEntity existingRubric() {
-        RubricEntity rubric = new RubricEntity();
-        rubric.setId(UUID.randomUUID());
-        rubric.setName("Existing rubric");
-        rubric.setCriteria(jsonMapper.valueToTree(List.of(
-                new RubricCriterion("Content", null, 60),
-                new RubricCriterion("Style", null, 40)
-        )));
-        rubric.setGradeScheme(gradeScheme());
-        rubric.setCreatedBy("teacher-1");
-        rubric.setCreatedAt(java.time.Instant.parse("2026-03-11T12:00:00Z"));
-        rubric.setUpdatedAt(java.time.Instant.parse("2026-03-11T12:00:00Z"));
-        return rubric;
     }
 
     private static final class RecordingRepository {
