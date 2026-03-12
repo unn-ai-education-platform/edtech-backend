@@ -1,6 +1,7 @@
 package ru.unn.edtech.evaluation;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import ru.unn.edtech.submission.SubmissionRepository;
 import ru.unn.edtech.support.exception.BadRequestException;
 
@@ -43,6 +44,18 @@ class EvaluationJobServiceTest {
                 .hasMessage("An active evaluation job already exists for this submission");
     }
 
+    @Test
+    void createQueuedJobMapsDbUniqueConflictToBadRequest() {
+        EvaluationJobService service = new EvaluationJobService(
+                conflictingSaveRepository(),
+                submissionRepository(true)
+        );
+
+        assertThatThrownBy(() -> service.createQueuedJob(UUID.randomUUID(), "trace-123"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("An active evaluation job already exists for this submission");
+    }
+
     private EvaluationJobRepository activeJobRepository() {
         return (EvaluationJobRepository) Proxy.newProxyInstance(
                 EvaluationJobRepository.class.getClassLoader(),
@@ -66,6 +79,25 @@ class EvaluationJobServiceTest {
                 (proxy, method, args) -> {
                     if ("existsById".equals(method.getName())) {
                         return exists;
+                    }
+                    throw new UnsupportedOperationException(method.getName());
+                }
+        );
+    }
+
+    private EvaluationJobRepository conflictingSaveRepository() {
+        return (EvaluationJobRepository) Proxy.newProxyInstance(
+                EvaluationJobRepository.class.getClassLoader(),
+                new Class[]{EvaluationJobRepository.class},
+                (proxy, method, args) -> {
+                    if ("existsBySubmissionIdAndStatusIn".equals(method.getName())) {
+                        return false;
+                    }
+                    if ("save".equals(method.getName())) {
+                        throw new DataIntegrityViolationException("duplicate key");
+                    }
+                    if ("findById".equals(method.getName())) {
+                        return Optional.empty();
                     }
                     throw new UnsupportedOperationException(method.getName());
                 }

@@ -1,5 +1,6 @@
 package ru.unn.edtech.evaluation;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.unn.edtech.submission.SubmissionNotFoundException;
@@ -50,7 +51,11 @@ public class EvaluationJobService {
         job.setCreatedAt(now);
         job.setUpdatedAt(now);
 
-        return evaluationJobRepository.save(job);
+        try {
+            return evaluationJobRepository.save(job);
+        } catch (DataIntegrityViolationException ex) {
+            throw new BadRequestException("An active evaluation job already exists for this submission");
+        }
     }
 
     public EvaluationJobEntity getJob(UUID jobId) {
