@@ -213,12 +213,20 @@ Response:
 ```
 
 Rules:
+- Teacher-only endpoint.
 - At most one active job (`QUEUED` or `RUNNING`) may exist per submission.
+
+Errors:
+- `404 SUBMISSION_NOT_FOUND` if the submission does not exist.
+- `400 INVALID_REQUEST` if an active job already exists for the submission.
 
 #### `GET /api/v1/jobs/{jobId}` (teacher)
 
 Returns internal job status:
 - `QUEUED | RUNNING | DONE | FAILED`
+
+Errors:
+- `404 JOB_NOT_FOUND` if the job does not exist.
 
 ### AI draft (teacher-only)
 
